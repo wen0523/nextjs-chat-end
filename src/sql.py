@@ -2,27 +2,47 @@
 from dotenv import load_dotenv
 import os
 
-import pymysql
+import sqlite3
 
-# 加载 .env 文件
-load_dotenv('../.env')
-
-# 获取环境变量
-db_host = os.getenv('DB_HOST')
-db_user = os.getenv('DB_USER')
-db_password = os.getenv('DB_PASSWORD')
-
-#连接数据库
+# 连接数据库
 def connect():
-    connection = pymysql.connect(
-            host=db_host,      # 数据库主机地址
-            user=db_user,   # 数据库用户名
-            password=db_password,  # 数据库密码
-            db='DATACHAT',     # 数据库名称
-            charset='utf8mb4',      # 字符编码
-            cursorclass=pymysql.cursors.DictCursor  # 返回字典格式的游标
-        )
+    connection = sqlite3.connect('chat.db')
+    connection.row_factory = sqlite3.Row  # 返回字典格式的行
     return connection
+
+# 初始化数据库
+def init_db():
+    connection = connect()
+    cursor = connection.cursor()
+    
+    # 创建用户表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            theme TEXT
+        )
+    ''')
+    
+    # 创建列表表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS allList (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT,
+            routerID TEXT UNIQUE
+        )
+    ''')
+    
+    # 创建测试表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS test (
+            id TEXT PRIMARY KEY,
+            messages TEXT
+        )
+    ''')
+    
+    connection.commit()
+    connection.close()
 
 #更新个人信息
 def updateUserInfo(theUsername, theTheme):
@@ -31,13 +51,12 @@ def updateUserInfo(theUsername, theTheme):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = 'UPDATE user SET username = %s, theme = %s'
-            cursor.execute(sql, (theUsername, theTheme))  # 使用参数化查询
+        cursor = connection.cursor()
+        cursor.execute('UPDATE user SET username = ?, theme = ?', (theUsername, theTheme))
 
-            # 提交事务
-            connection.commit()
-            return 'success'
+        # 提交事务
+        connection.commit()
+        return 'success'
     except Exception as e:
         connection.rollback()# 在出现错误时回滚事务，防止不完整或错误的数据被写入。
         print(e)
@@ -53,12 +72,10 @@ def getUserInfo():
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = 'select username,theme from user;'
-            # 执行SQL语句
-            cursor.execute(sql)
-            result = cursor.fetchall()
-            return result
+        cursor = connection.cursor()
+        cursor.execute('select username,theme from user;')
+        result = cursor.fetchall()
+        return result
 
     except Exception as e:
         print(e)
@@ -73,29 +90,28 @@ def setList(text, routerID, htmlID, messageID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql1 = 'INSERT into allList (text,routerID) VALUES (%s,%s)'
-            cursor.execute(sql1, (text, routerID))  # 使用参数化查询
+        cursor = connection.cursor()
+        cursor.execute('INSERT or REPLACE into allList (text,routerID) VALUES (?,?)', (text, routerID))
 
-            # 动态创建表(html)
-            sql2 = f"""
-            CREATE TABLE IF NOT EXISTS `{htmlID}` (
-                `ask` TEXT NOT NULL,
-                `answer` MEDIUMTEXT NOT NULL);
-            """
-            cursor.execute(sql2)
+        # 动态创建表(html)
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS "{htmlID}" (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ask TEXT NOT NULL,
+                answer TEXT NOT NULL)
+        ''')
 
-            # 动态创建表(message)
-            sql3 = f"""
-            CREATE TABLE IF NOT EXISTS `{messageID}` (
-                `ask` TEXT NOT NULL,
-                `answer` MEDIUMTEXT NOT NULL);
-            """
-            cursor.execute(sql3)
+        # 动态创建表(message)
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS "{messageID}" (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ask TEXT NOT NULL,
+                answer TEXT NOT NULL)
+        ''')
 
-            # 提交事务
-            connection.commit()
-            return 'success'
+        # 提交事务
+        connection.commit()
+        return 'success'
     except Exception as e:
         connection.rollback()# 在出现错误时回滚事务，防止不完整或错误的数据被写入。
         print(e)
@@ -111,12 +127,10 @@ def getList():
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = 'select * from allList;'
-            # 执行SQL语句
-            cursor.execute(sql)
-            result = cursor.fetchall()
-            return result
+        cursor = connection.cursor()
+        cursor.execute('select * from allList;')
+        result = cursor.fetchall()
+        return result
 
     except Exception as e:
         print(e)
@@ -131,13 +145,12 @@ def deleteList(routerID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = 'delete from allList where routerID = %s'
-            cursor.execute(sql, routerID)  # 使用参数化查询 
+        cursor = connection.cursor()
+        cursor.execute('delete from allList where routerID = ?', (routerID,))
 
-            # 提交事务
-            connection.commit()
-            return 'success'
+        # 提交事务
+        connection.commit()
+        return 'success'
     except Exception as e:
         connection.rollback()# 在出现错误时回滚事务，防止不完整或错误的数据被写入。
         print(e)
@@ -153,13 +166,12 @@ def setHtmlContent(askContent, requestContent, routerID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = f'INSERT into `{routerID}` VALUES (%s,%s)'
-            cursor.execute(sql, (askContent, requestContent))  # 使用参数化查询
+        cursor = connection.cursor()
+        cursor.execute(f'INSERT into "{routerID}" (ask, answer) VALUES (?,?)', (askContent, requestContent))
 
-            # 提交事务
-            connection.commit()
-            return 'success'
+        # 提交事务
+        connection.commit()
+        return 'success'
     except Exception as e:
         connection.rollback()# 在出现错误时回滚事务，防止不完整或错误的数据被写入。
         print(e)
@@ -175,12 +187,10 @@ def getHtmlContent(routerID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = f'select * from `{routerID}`;'
-            # 执行SQL语句
-            cursor.execute(sql)
-            result = cursor.fetchall()
-            return result
+        cursor = connection.cursor()
+        cursor.execute(f'select * from "{routerID}";')
+        result = cursor.fetchall()
+        return result
 
     except Exception as e:
         print(e)
@@ -195,13 +205,12 @@ def setMessageContent(askContent, requestContent, routerID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = f'INSERT into `{routerID}` VALUES (%s,%s)'
-            cursor.execute(sql, (askContent, requestContent))  # 使用参数化查询
+        cursor = connection.cursor()
+        cursor.execute(f'INSERT into "{routerID}" (ask, answer) VALUES (?,?)', (askContent, requestContent))
 
-            # 提交事务
-            connection.commit()
-            return 'success'
+        # 提交事务
+        connection.commit()
+        return 'success'
     except Exception as e:
         connection.rollback()# 在出现错误时回滚事务，防止不完整或错误的数据被写入。
         print(e)
@@ -217,12 +226,10 @@ def getMessageContent(routerID):
         connection = connect()
 
         # 创建游标对象
-        with connection.cursor() as cursor:
-            sql = f'select * from `{routerID}`;'
-            # 执行SQL语句
-            cursor.execute(sql)
-            result = cursor.fetchall()
-            return result
+        cursor = connection.cursor()
+        cursor.execute(f'select * from "{routerID}";')
+        result = cursor.fetchall()
+        return result
 
     except Exception as e:
         print(e)

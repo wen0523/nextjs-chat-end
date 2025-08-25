@@ -11,7 +11,7 @@ import json
 #自定义函数
 from chat import Chat
 from shared_parameters import setID
-from sql import updateUserInfo, getUserInfo, setList, getList,deleteList,setHtmlContent,getHtmlContent
+from sql import updateUserInfo, getUserInfo, setList, getList,deleteList,setHtmlContent,getHtmlContent, init_db
 from memory import getMemory
 
 ##没有进行前端传输过来的数据合法性检测
@@ -23,6 +23,9 @@ app.register_blueprint(sse, url_prefix='/stream')
 
 # 配置 CORS，允许指定来源访问
 CORS(app, resources={r"/*": {"origins": ["http://localhost:3000"]}})
+
+# 初始化数据库
+init_db()
 
 chatApp = Chat()
 allIDs = [] #用于储存正在使用的routerID，用于消息持久性

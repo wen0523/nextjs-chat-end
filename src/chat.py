@@ -11,16 +11,19 @@ from langgraph.graph import START, MessagesState, StateGraph
 from shared_parameters import getID
 from sql import setMessageContent
 
-# 加载 .env 文件
-load_dotenv('../.env')
-
-api_key = os.getenv('API_KEY')
-
 def Chat():
+# 加载 .env 文件
+    if not load_dotenv('../.env'):
+        print("警告：无法加载 .env 文件")
+
+    model = os.getenv('MODEL')
+    api_key = os.getenv('OPENAI_API_KEY')
+    openai_api_base = os.getenv('OPENAI_API_BASE')
+
     #连接大模型
     model = ChatOpenAI(
-        model="gpt-3.5-turbo",
-        openai_api_base='https://xiaoai.plus/v1',
+        model= model,
+        openai_api_base= openai_api_base,
         openai_api_key= api_key
     )
 
